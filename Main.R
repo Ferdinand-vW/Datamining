@@ -1,93 +1,166 @@
+source("Tree.R")
+source("functions.R")
+
 tree.grow <- function(x,y,nmin,minleaf) {
-  n <- node(y)
-  tree.grow1(x,n,nmin,minleaf)
+  root <- newNode(y)
+  tree.grow1(x,root,nmin,minleaf)
 }
 
 #First we find a value and attribute to split on
 #Then actually do the split, which should return a node with two leafs
 #Then we recursively do the above steps for both the leftchild and the rightchild
-tree.grow1 <- function(x,n,nmin,minleaf) {
+tree.grow1 <- function(x,node,nmin,minleaf) {
+  y <- node@classLabels
   
-  split <- findSplit(x,n,nmin,minleaf)
-  n <- doSplit(split,n)
-  
-  lChild <- tree.grow1(x, leftChild(n),nmin,minleaf)
-  rChild <- tree.grow1(x, rightChild(n),nmin,minleaf)
-  
-  node(lChild, value(n), rChild)
-}
-
-findSplit <- function(x, y, nmin, minleaf) {
-  #for(Attribute a in x) {
-   # findSplitAttribute(a, y, nmin, minleaf)
-  #}
-}
-
-findSplitAttribute <- function(attr, y, nmin, minleaf) {
-  
-}
-
-#If a node and both children are leafs and have the same majority class
-#then remove the children and return the current node back as a leaf node
-#If a node but the children are not leaf nodes then recursively go into both the left
-#and right child
-#If the current node is a leaf node then simply return it
-tree.simplify <- function(tree) {
-  if(isNode(tree)) {
-    l <- leftChild(tree)
-    r <- rightChild(tree)
+  if(length(y) >= nmin) {
+    split <- findSplit(x,y,minleaf)
     
-    if(isLeaf(l) && isLeaf(r) && class(l) == class(r)) {
-      leaf(vaue(tree))
+    #Determine whether a split was possible
+    if(!is.na(split[[1]])) {
+      n <- doSplit(x,y,split)
+      
+      #Remove all unnecessary rows
+      lx <- x[x[split[[3]]] <= split[[1]], ]
+      rx <- x[x[split[[3]]] >  split[[1]], ]
+      #remove the column that was used for splitting
+      lx[split[[3]]] <- NULL
+      rx[split[[3]]] <- NULL
+      
+      #There must be at least one more column to split on
+      if(length(colnames(lx)) >= 1) {
+
+        lChild <- tree.grow1(lx, n@lChild,nmin,minleaf)
+        n@lChild = lChild
+      }
+      
+      #There must be at at least one more column to split on
+      if(length(colnames(rx)) >= 1) {
+
+        rChild <- tree.grow1(rx, n@rChild,nmin,minleaf)
+        n@rChild = rChild
+      }
+      
+      return(n)
     }
     else {
-      l <- tree.simplify(l)
-      r <- tree.simplify(r)
-      node(l, value(tree), r)
     }
   }
   else {
-    tree
-  }
-}
-
-tree.classify <- function(x,tr) {
-  y <- c(0)
-  
-  foreach(sample s : x) {
-      y <- c(y, tree.classify1(s,tr))
+    print("class labels have no length")
   }
   
-  y
+  node
 }
 
-
-#We check whether the tree is a node
-#If so we get the attribute that the node is split on
-#Furthermore we get the value that was used for splitting
-#Then we take the corresponding value of the training sample s
-#If that value is lower than the splitvalue we recursively go into the leftchild
-#otherwise into the rightchild
-#The base case is the leaf node, which returns the majority class of that leaf
-tree.classify1 <- function(s, tr) {
-  if(isNode(tr)) {
-    attr <- attribute(tr)
-    splitvalue <- split(tr)
+findSplit <- function(x,y,minleaf) {
+  splits <- lapply(x,FUN=findSplitAttribute,y=y,minleaf=minleaf)
+  
+  bSplit <- NA
+  bgini <- NA
+  battr <- c("")
+  
+  for(col in names(splits)) {
+    attr <- splits[[col]]
+    split <- attr[1]
+    gini <- attr[2]
     
-    val <- attributeValue(s, attr)
-    if (val <= splitvalue) {
-      l <- leftChild(tr)
-      tree.classify1(s, l)
-    }
-    else {
-      r <- rightChild(tr)
-      tree.classify1(s, r)
+    if(!is.na(split)) {
+    
+      if(is.na(bgini) || gini > bgini) {
+        bgini <- gini
+        bSplit <- split
+        battr <- col
+      }
     }
   }
-  else {
-    classValue(tr)
-  }
+
+  list(bSplit,bgini,battr)
 }
+
+findSplitAttribute <- function(col,y,minleaf) {
+  bestsplit(col,y,minleaf)
+}
+
+doSplit <- function(x,y,split) {
+  splitVal <- split[[1]]
+  gini <- split[[2]]
+  splitAttr <- split[[3]]
+
+  lChild <- y[x[splitAttr] <= splitVal]
+  rChild <- y[x[splitAttr] > splitVal]
+  
+  n <- newNode(y)
+  n@lChild = newNode(lChild)
+  n@rChild = newNode(rChild)
+  n@splitAttr = splitAttr
+  n@splitVal = splitVal
+  
+  n
+}
+
+
+# 
+# #If a node and both children are leafs and have the same majority class
+# #then remove the children and return the current node back as a leaf node
+# #If a node but the children are not leaf nodes then recursively go into both the left
+# #and right child
+# #If the current node is a leaf node then simply return it
+# tree.simplify <- function(tree) {
+#   if(isNode(tree)) {
+#     l <- leftChild(tree)
+#     r <- rightChild(tree)
+#     
+#     if(isLeaf(l) && isLeaf(r) && class(l) == class(r)) {
+#       leaf(vaue(tree))
+#     }
+#     else {
+#       l <- tree.simplify(l)
+#       r <- tree.simplify(r)
+#       node(l, value(tree), r)
+#     }
+#   }
+#   else {
+#     tree
+#   }
+# }
+# 
+# tree.classify <- function(x,tr) {
+#   y <- c(0)
+#   
+#   foreach(sample s : x) {
+#       y <- c(y, tree.classify1(s,tr))
+#   }
+#   
+#   y
+# }
+# 
+# 
+# #We check whether the tree is a node
+# #If so we get the attribute that the node is split on
+# #Furthermore we get the value that was used for splitting
+# #Then we take the corresponding value of the training sample s
+# #If that value is lower than the splitvalue we recursively go into the leftchild
+# #otherwise into the rightchild
+# #The base case is the leaf node, which returns the majority class of that leaf
+# tree.classify1 <- function(s, tr) {
+#   if(isNode(tr)) {
+#     attr <- attribute(tr)
+#     splitvalue <- split(tr)
+#     
+#     val <- attributeValue(s, attr)
+#     if (val <= splitvalue) {
+#       l <- leftChild(tr)
+#       tree.classify1(s, l)
+#     }
+#     else {
+#       r <- rightChild(tr)
+#       tree.classify1(s, r)
+#     }
+#   }
+#   else {
+#     classValue(tr)
+#   }
+# }
   
   
 
