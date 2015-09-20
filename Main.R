@@ -22,20 +22,19 @@ tree.grow1 <- function(x,node,nmin,minleaf) {
       #Remove all unnecessary rows
       lx <- x[x[split[[3]]] <= split[[1]], ]
       rx <- x[x[split[[3]]] >  split[[1]], ]
-      #remove the column that was used for splitting
-      lx[split[[3]]] <- NULL
-      rx[split[[3]]] <- NULL
       
       #There must be at least one more column to split on
-      if(length(colnames(lx)) >= 1) {
+      if(length(colnames(lx)) > 1) {
+        #we can now safely remove the previously split on column
+        lx[split[[3]]] <- NULL 
         #recursively split into the left child node
         lChild <- tree.grow1(lx, n@lChild,nmin,minleaf)
         n@lChild = lChild
       }
       
       #Do the same as above for the right childnode
-      if(length(colnames(rx)) >= 1) {
-
+      if(length(colnames(rx)) > 1) {
+        rx[split[[3]]] <- NULL
         rChild <- tree.grow1(rx, n@rChild,nmin,minleaf)
         n@rChild = rChild
       }
