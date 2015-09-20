@@ -2,21 +2,21 @@ source("Tree.R")
 source("functions.R")
 
 tree.grow <- function(x,y,nmin,minleaf) {
+  #We start by creating a root node and adding all class labels to it
   root <- newNode(y)
   tree.grow1(x,root,nmin,minleaf)
 }
 
-#First we find a value and attribute to split on
-#Then actually do the split, which should return a node with two leafs
-#Then we recursively do the above steps for both the leftchild and the rightchild
 tree.grow1 <- function(x,node,nmin,minleaf) {
   y <- node@classLabels
   
+  #We can only split the current node if it contains enough class labels
   if(length(y) >= nmin) {
     split <- findSplit(x,y,minleaf)
     
     #Determine whether a split was possible
     if(!is.na(split[[1]])) {
+      #Do the split, which returns a new node, containing two child nodes
       n <- doSplit(x,y,split)
       
       #Remove all unnecessary rows
@@ -28,12 +28,12 @@ tree.grow1 <- function(x,node,nmin,minleaf) {
       
       #There must be at least one more column to split on
       if(length(colnames(lx)) >= 1) {
-
+        #recursively split into the left child node
         lChild <- tree.grow1(lx, n@lChild,nmin,minleaf)
         n@lChild = lChild
       }
       
-      #There must be at at least one more column to split on
+      #Do the same as above for the right childnode
       if(length(colnames(rx)) >= 1) {
 
         rChild <- tree.grow1(rx, n@rChild,nmin,minleaf)
@@ -53,17 +53,20 @@ tree.grow1 <- function(x,node,nmin,minleaf) {
 }
 
 findSplit <- function(x,y,minleaf) {
+  #returns the best split and its quality for each attribute
   splits <- lapply(x,FUN=findSplitAttribute,y=y,minleaf=minleaf)
   
   bSplit <- NA
   bgini <- NA
   battr <- c("")
   
+  #determine of the above calculated splits, which is best
   for(col in names(splits)) {
     attr <- splits[[col]]
     split <- attr[1]
     gini <- attr[2]
     
+    #ensure that a split was actually possible
     if(!is.na(split)) {
     
       if(is.na(bgini) || gini > bgini) {
@@ -73,14 +76,19 @@ findSplit <- function(x,y,minleaf) {
       }
     }
   }
-
+  
+  #return the splitvalue, its quality and the attribute that was used for splitting
   list(bSplit,bgini,battr)
 }
 
+#find a split for a specific attribute
 findSplitAttribute <- function(col,y,minleaf) {
   bestsplit(col,y,minleaf)
 }
 
+#use a split value and attribute to split
+#the class labels of the node and to create two
+#new nodes, which are the child nodes
 doSplit <- function(x,y,split) {
   splitVal <- split[[1]]
   gini <- split[[2]]
