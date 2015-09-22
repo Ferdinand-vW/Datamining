@@ -30,8 +30,11 @@ tree.grow1 <- function(x,node,nmin,minleaf) {
         #recursively split into the left child node
         lChild <- tree.grow1(lx, n@lChild,nmin,minleaf)
         n@lChild = lChild
+        
       }
+ 
       
+           
       #Do the same as above for the right childnode
       if(length(colnames(rx)) > 1) {
         rx[split[[3]]] <- NULL
