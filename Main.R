@@ -47,9 +47,6 @@ tree.grow1 <- function(x,node,nmin,minleaf) {
     else {
     }
   }
-  else {
-    print("class labels have no length")
-  }
   
   node
 }

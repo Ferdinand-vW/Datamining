@@ -18,12 +18,9 @@ tree.simplify <- function(tree) {
      if(isLeaf(l) && isLeaf(r) ){
        l_maj <- majority(l)
        r_maj <- majority(r)
-       print(tree@splitAttr)
-       print(l_maj)
-       print(r_maj)
+
       if (l_maj == r_maj || l_maj == 2 || r_maj == 2) {
       
-           # tree@classLabels <- c(l@classLabels,r@classLabels)
            tree@lChild <- new("Leaf")
            tree@rChild <- new("Leaf")
            tree@splitAttr <- character(0)
