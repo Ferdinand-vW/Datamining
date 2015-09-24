@@ -57,12 +57,11 @@ majority <- function(x){
   if (value_0 > value_1) {
     0
   }
-  else if (value_0 < value_1){
+  else if(value_1 > value_0){
     1
   }
   else {
     2
-    
   }
   
 }
