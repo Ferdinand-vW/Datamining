@@ -1,34 +1,47 @@
-testFunc <- function(x) {
+prepareData <- function(x) {
   index <- trainingIndex()
   data <- trainingdata(x,index)
   sample <- testsample(x,index)
   
   dataparts <- splitTrainingData(data)
-  
-  res <- crossValidation(dataparts)
-  
-  table(res[1],res[2])
 }
 
-crossValidation <- function(parts) {
+evaluateModel <- function(dataparts,nmin,minleaf) {
+  
+  res <- crossValidation(dataparts,nmin,minleaf)
+  true <- res[[1]]
+  pred <- res[[2]]
+  corrPred <- true[true==pred]
+  
+  numE <- length(pred) - length(corrPred)
+  
+  numE / length(true)
+}
+
+
+
+crossValidation <- function(parts,nmin,minleaf) {
   i <- 1
   size <- length(parts)
   
   results <- vector("list",2)
   
   while(i <= size) {
+    
     single <- parts[[i]]
     others <- parts[-i]
     
-    result <- classify(others,single)
-    results[1] <- c(results[1],result[1])
-    results[2] <- c(results[2],result[2])
+    result <- classification(others,single,nmin,minleaf)
+    results[[1]] <- c(results[[1]],result[[1]])
+    results[[2]] <- c(results[[2]],result[[2]])
     
     i <- i + 1
   }
   
   results
 }
+
+classifierError <- function()
 
 trainingIndex <- function() {
   index <- sample(297,200)
@@ -62,21 +75,17 @@ splitTrainingData <- function(x) {
   l
 }
 
-classify <- function(x,y) {
+classification <- function(x,y,nmin,minleaf) {
   cx <- vapply(x,FUN=getClassLabels,numeric(20))
   cx <- (combineParts(cx))[[1]]
-  x <- sapply(x,FUN=removeClassLabels)
+  x <- lapply(x,FUN=removeClassLabels)
   x <- combineParts(x)
   cy <- y[,"AHD"]
-  y[,"AHD"] <- NULL
+  #y[,"AHD"] <- NULL
   
-  tree <- tree.grow(x,cx,nmin = 5,minleaf=5)
+  tree <- tree.grow(x,cx,nmin,minleaf)
   classLabels <- tree.classify(tree,y)
   
-  trueOnes <- sum(cy)
-  trueZeros <- length(cy) - trueOnes
-  predOnes <- sum(classLabels)
-  predZeros <- length(classLabels) - predOnes
   list(cy,classLabels)
 }
 
@@ -86,6 +95,7 @@ getClassLabels <- function(x) {
 
 removeClassLabels <- function(x) {
   x[,"AHD"] <- NULL
+  x
 }
 
 combineParts <- function(parts) {
