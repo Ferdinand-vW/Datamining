@@ -1,4 +1,4 @@
-library("plotrix")
+# library("plotrix")
 
 #Abstract Tree class
 setClass(
@@ -82,50 +82,56 @@ setGeneric("widthOf",function(x) attributes(x))
               2^(h-1)
             })
 
-setMethod("plot","Tree",
-          function(x) {
-            
-            par(mar = c(4,4,4,4)) 
-            w <- widthOf(x)
-            h <- heightOf(x)
-            plot.new()
-            plot.window(c(0,w * 100),c(0,h * 75),asp=1)
-            plotNode(x,w * 50,(h*75) - 25,w*50)
-          })
 
-setGeneric("plotNode",function(n,x,y,scale) attributes(n,x,y,scale))
-setMethod("plotNode","Tree",
-          function(n,x,y,scale) {
-            
-            numOnes <- sum(n@classLabels)
-            numZeros <- length(n@classLabels) - numOnes
-            
-            #Draw the node
-            draw.circle(x,y,nv=1000,radius=25)
-            
-            #Draw text inside the nodey
-            text(x - 12.5,y,numOnes)
-            text(x + 12.5,y,numZeros)
-            lines(c(x,x),c(y+25,y-25))
-            
-            
-            if(!isLeaf(n) && isNode(n)) {
-              newX <- scale / 2
-              newY <- y - 50
-              
-              #Draw the edges
-              lines(c(x,x-newX),c(y-25,newY))
-              lines(c(x,x+newX),c(y-25,newY))
-              
-              #Draw split information
-              text(x - newX,y - 25,paste("<=",n@splitVal))
-              text(x + newX,y - 25,paste(">",n@splitVal))
-              text(x,y - 40,n@splitAttr)
-              
-              #Draw the child nodes
-              plotNode(n@lChild,x - newX,newY - 25,newX)
-              plotNode(n@rChild,x + newX,newY - 25,newX)
-            }
-          })
+#To use this code uncomment it, uncomment the library at the top of this page
+#and install the given library. The code below wasn't a necessary part of the assignment
+#but we used it to graph our tree. Understand that it works best for our specific tree,
+#if you try to graph with a different tree, text will most likely be misaligned
+
+# setMethod("plot","Tree",
+#           function(x) {
+#             
+#             par(mar = c(4,4,4,4)) 
+#             w <- widthOf(x)
+#             h <- heightOf(x)
+#             plot.new()
+#             plot.window(c(0,w * 100),c(0,h * 75),asp=1)
+#             plotNode(x,w * 50,(h*75) - 25,w*50)
+#           })
+# 
+# setGeneric("plotNode",function(n,x,y,scale) attributes(n,x,y,scale))
+# setMethod("plotNode","Tree",
+#           function(n,x,y,scale) {
+#             
+#             numOnes <- sum(n@classLabels)
+#             numZeros <- length(n@classLabels) - numOnes
+#             
+#             #Draw the node
+#             draw.circle(x,y,nv=1000,radius=25)
+#             
+#             #Draw text inside the nodey
+#             text(x - 12.5,y,numOnes)
+#             text(x + 12.5,y,numZeros)
+#             lines(c(x,x),c(y+25,y-25))
+#             
+#             
+#             if(!isLeaf(n) && isNode(n)) {
+#               newX <- scale / 2
+#               newY <- y - 50
+#               
+#               #Draw the edges
+#               lines(c(x,x-newX),c(y-25,newY))
+#               lines(c(x,x+newX),c(y-25,newY))
+#               
+#               #Draw split information
+#               text(x - newX,y - 25,paste("<=",n@splitVal))
+#               text(x + newX,y - 25,paste(">",n@splitVal))
+#               text(x,y - 40,n@splitAttr)
+#               
+#               #Draw the child nodes
+#               plotNode(n@lChild,x - newX,newY - 25,newX)
+#               plotNode(n@rChild,x + newX,newY - 25,newX)
+#             }
+#           })
 
 
