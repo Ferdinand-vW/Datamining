@@ -78,7 +78,7 @@ evaluateSample <- function(sample,nmin,minleaf) {
   x[,"AHD"] <- NULL
   #We grow the tree and predict the classlabels given the sample
   tree <- tree.grow(x,y,nmin,minleaf)
-  tree.simplify(tree)
+  tree <- tree.simplify(tree)
   cy <- tree.classify(tree,sample)
   
   #We calculate the classification error by comparing the classlabels from the sample

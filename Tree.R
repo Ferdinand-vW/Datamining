@@ -1,4 +1,4 @@
-# library("plotrix")
+library("plotrix")
 
 #Abstract Tree class
 setClass(
@@ -88,50 +88,76 @@ setGeneric("widthOf",function(x) attributes(x))
 #but we used it to graph our tree. Understand that it works best for our specific tree,
 #if you try to graph with a different tree, text will most likely be misaligned
 
-# setMethod("plot","Tree",
-#           function(x) {
-#             
-#             par(mar = c(4,4,4,4)) 
-#             w <- widthOf(x)
-#             h <- heightOf(x)
-#             plot.new()
-#             plot.window(c(0,w * 100),c(0,h * 75),asp=1)
-#             plotNode(x,w * 50,(h*75) - 25,w*50)
-#           })
-# 
-# setGeneric("plotNode",function(n,x,y,scale) attributes(n,x,y,scale))
-# setMethod("plotNode","Tree",
-#           function(n,x,y,scale) {
-#             
-#             numOnes <- sum(n@classLabels)
-#             numZeros <- length(n@classLabels) - numOnes
-#             
-#             #Draw the node
-#             draw.circle(x,y,nv=1000,radius=25)
-#             
-#             #Draw text inside the nodey
-#             text(x - 12.5,y,numOnes)
-#             text(x + 12.5,y,numZeros)
-#             lines(c(x,x),c(y+25,y-25))
-#             
-#             
-#             if(!isLeaf(n) && isNode(n)) {
-#               newX <- scale / 2
-#               newY <- y - 50
-#               
-#               #Draw the edges
-#               lines(c(x,x-newX),c(y-25,newY))
-#               lines(c(x,x+newX),c(y-25,newY))
-#               
-#               #Draw split information
-#               text(x - newX,y - 25,paste("<=",n@splitVal))
-#               text(x + newX,y - 25,paste(">",n@splitVal))
-#               text(x,y - 40,n@splitAttr)
-#               
-#               #Draw the child nodes
-#               plotNode(n@lChild,x - newX,newY - 25,newX)
-#               plotNode(n@rChild,x + newX,newY - 25,newX)
-#             }
-#           })
+setMethod("plot","Tree",
+          function(x) {
+            
+            par(mar = c(4,4,4,4)) 
+            w <- widthOf(x)
+            h <- heightOf(x)
+            plot.new()
+            plot.window(c(0,w * 100),c(0,h * 100),asp=1)
+            plotNode(x,w * 50,(h*100) - 25,w*50,25)
+            
+            rect(w * 80 - 25,(h*100) - 50,w*80 + 25,(h*100))
+            rect(w*80+25,(h*100) - 50,w*80 + 75,h*100)
+            text(w*80 - 12.5,(h*100) - 25,"Bad")
+            text(w*80 + 37.5,h*100 - 25,"Good")
+          })
+
+setGeneric("plotNode",function(n,x,y,scale,radius) attributes(n,x,y,scale,radius))
+setMethod("plotNode","Tree",
+          function(n,x,y,scale,radius) {
+            
+            numOnes <- sum(n@classLabels)
+            numZeros <- length(n@classLabels) - numOnes
+            
+            
+            
+            #lines(c(x,x),c(y+(radius),y-radius))
+            
+            
+            if(!isLeaf(n) && isNode(n)) {
+              newX <- scale / 2
+              newY <- y - (radius * 3)
+              
+              #Draw the edges
+              lines(c(x,x-newX),c(y-radius,newY))
+              lines(c(x,x+newX),c(y-radius,newY))
+              
+              #Draw split information
+              ltext <- paste("<=",n@splitVal)
+              rtext <- paste(">",n@splitVal)
+              attrtext <- paste(n@splitAttr)
+              text(x - (newX / 2) - (length(ltext) * 20),y - (radius * 1.5),ltext)
+              text(x + (newX / 2) + (length(rtext) * 20),y - (radius * 1.5),rtext)
+              text(x - length(attrtext) * 50,y - (2 *radius),attrtext)
+              
+              #Draw the child nodes
+              plotNode(n@lChild,x - newX,newY - radius,newX,radius)
+              plotNode(n@rChild,x + newX,newY - radius,newX,radius)
+              
+              #Draw the node
+              rectFill(x - radius,y - radius,x,y + radius,pch = NULL,bg=5)
+              rectFill(x,y - radius, x + radius, y + radius,pch = NULL,bg=5)
+            }
+            else{
+              color <- c(0)
+              if(numZeros > numOnes) {
+                color <- 2 #red
+              }
+              else {
+                color <- 3 #green
+              }
+              #Draw the node with a given color
+              rectFill(x - radius,y - radius,x,y + radius,pch = NULL,bg=color)
+              rectFill(x,y - radius, x + radius, y + radius,pch = NULL,bg=color)
+            }
+            
+            zeroLength <- radius / length(paste(numZeros))
+            oneLength <- radius / length(paste(numOnes))
+            #Draw text inside the node
+            text(x - (zeroLength - (zeroLength / 4)),y,numZeros)
+            text(x + (oneLength / 4),y,numOnes)
+          })
 
 
