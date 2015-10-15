@@ -1,0 +1,719 @@
+
+########################3 Main Functions####################################
+
+#x = dataframe without classlabels
+#y = classlabels
+#nmin,minleaf are integers
+#The result is a tree --see Tree.R for the structure of the tree
+tree.grow <- function(x,y,nmin,minleaf) {
+  #We start by creating a root node and adding all class labels to it
+  root <- newNode(y)#Then we use the root to grow the rest of the tree
+  tree.grow1(x,root,nmin,minleaf)
+}
+
+
+#tr = tree structure
+#dt = dataframe including classlabels
+#returns the predicted classlabels
+#Will predict the classlabel for each row in the dataframe
+tree.classify <- function(tr,dt) {
+  #We classify each row of the dataframe
+  #Each classified row returns a 1 or 0
+  apply(dt,1,function(x) classify(x,tr))
+}
+
+#tree = tree/node
+#returns a tree
+#This function 'simplifies' a given tree by removing pairs of nodes
+#where both nodes have the same parent and the same majority class
+tree.simplify <- function(tree) {
+  #If the current tree is not a node
+  #then we are done, otherwise...
+  if(isNode(tree)) {
+     l <- tree@lChild
+     r <- tree@rChild
+     
+     
+     #If both child nodes are leafs, then we determine their majority
+     if(isLeaf(l) && isLeaf(r) ){
+       l_maj <- majority(l)
+       r_maj <- majority(r)
+      
+      #If they have an equal majority, or one of the two nodes has no majority
+      #then we can remove both child nodes
+      if (l_maj == r_maj || l_maj == 2 || r_maj == 2) {
+      
+           tree@lChild <- new("Leaf")
+           tree@rChild <- new("Leaf")
+           tree@splitAttr <- character(0)
+           tree@splitVal <- numeric(0)
+      }
+       tree
+     } 
+     #If both child nodes are no leaves, then we recursively go through the tree
+     else {
+       l_sim <- tree.simplify(l)
+       r_sim <- tree.simplify(r)
+       
+       #We assign the newly simplified child nodes to the current node
+       tree@lChild <- l_sim
+       tree@rChild <- r_sim
+       
+       #If one of the childnodes is different after simplification from before we
+       #simplified the node, then we redo the simplification on the current node
+       if(!identical(l_sim, l) || !identical(r_sim, r)) {
+         tree.simplify(tree)
+       }
+       else {
+         tree
+       }
+
+     }
+   }
+   else {
+     tree
+   }
+}
+
+
+###############################Tree.grow functions##############################
+#x = dataframe without classlabels
+#node = a node or leaf
+#The result is also a tree
+#This function does the actual tree growing
+#It tries to find the best possible split, then does the split
+#by creating two child nodes. We then do the same for both child nodes
+tree.grow1 <- function(x,node,nmin,minleaf) {
+  y <- node@classLabels
+  
+  #We can only split the current node if it contains enough class labels
+  if(length(y) >= nmin) {
+    #We look for a split using the given data
+    split <- findSplit(x,y,minleaf)
+    
+    #If the result of the split is NA
+    #then no split was possible
+    if(!is.na(split[[1]])) {
+      #Do the split, which returns a new node, containing two child nodes
+      n <- doSplit(x,y,split)
+      
+      #We now have to split rows of the given dataframe
+      #using the given split value and split attribute
+      lx <- x[x[split[[2]]] <= split[[1]], ]
+      rx <- x[x[split[[2]]] >  split[[1]], ]
+      
+      #use the tree grow function on both the left and right child
+      #and update the current node
+      lChild <- tree.grow1(lx,n@lChild,nmin,minleaf)
+      n@lChild = lChild
+      
+      rChild <- tree.grow1(rx,n@rChild,nmin,minleaf)
+      n@rChild = rChild
+      
+      return(n)
+    }
+  }
+  node
+}
+
+#x = dataframe
+#y = classlabels
+#Returns a tuple of a splitvalue and splitattribute
+#This function calculates the best split over all attributes
+findSplit <- function(x,y,minleaf) {
+  #Foreach column in x we use the findsplitAttribute function with
+  #the given y and minleaf
+  #The result is a list of 2-tuples with a splitattribute and its splitvalue
+  splits <- lapply(x,FUN=findSplitAttribute,y=y,minleaf=minleaf)
+  
+  #Initialize 'best' values of split,gini and attribute
+  bSplit <- NA
+  bgini <- NA
+  battr <- c("")
+  
+  #determine of the above calculated splits, which is best
+  for(col in names(splits)) {
+    #First unpack the data
+    attr <- splits[[col]]
+    split <- attr[1]
+    gini <- attr[2]
+    
+    #ensure that a split was actually possible
+    if(!is.na(split)) {
+      #If the new gini is better than the previous one
+      #update the best values
+      if(is.na(bgini) || gini > bgini) {
+        bgini <- gini
+        bSplit <- split
+        battr <- col
+      }
+    }
+  }
+  
+  #return the splitvalue and the attribute that was used for splitting
+  list(bSplit,battr)
+}
+
+#find a split for a specific attribute
+findSplitAttribute <- function(col,y,minleaf) {
+  bestsplit(col,y,minleaf)
+}
+
+
+#x = dataframe
+#y = classlabel
+#split = 2-tuple of the splitvalue and its attribute
+#returns a node with two children
+#use a split value and attribute to split
+#the class labels of the node and to create two
+#new nodes, which are the child nodes
+doSplit <- function(x,y,split) {
+  splitVal <- split[[1]]
+  splitAttr <- split[[2]]
+  
+  #Determine which classlabels go into the left/right node
+  lChild <- y[x[splitAttr] <= splitVal]
+  rChild <- y[x[splitAttr] > splitVal]
+  
+  #Create a new node using the old classlabels
+  #and add a right and left child node
+  n <- newNode(y)
+  n@lChild = newNode(lChild)
+  n@rChild = newNode(rChild)
+  n@splitAttr = splitAttr
+  n@splitVal = splitVal
+  
+  n
+}
+
+#######################Tree.classify###########################
+
+#row = a row from a dataframe
+#n = node
+#returns a 1 or 0
+#Classifies a row
+classify <- function(row,n) {
+  #If we're not at the bottom of the tree we
+  #recursively go through the tree using the 
+  #split attribute and value, which we compare to
+  #the data in the row
+  if(!isLeaf(n)) {
+    attr <- n@splitAttr
+    val <- n@splitVal
+
+   if(row[attr] <= val) {
+     classify(row,n@lChild)
+   }
+   else {
+     classify(row,n@rChild)
+   }
+ }#When we are at the bottom we can determine the class
+ else {
+  detClass(n)
+ }
+}
+
+#n = node
+#returns 1 or 0
+detClass <- function(n) {
+  Lbl <- n@classLabels
+  #Number of ones/zeros
+  num_1 <- sum(Lbl)
+  num_0 <- length(Lbl) - num_1
+  #If there are more zeros than ones then we
+  #assign 0 as the classlabel,otherwise 1
+  if(num_0 > num_1) {
+    0
+  }
+  else if(num_1 > num_0){
+    1
+  }#if however there are an equal number of 1s and 0s
+  #then we randomly choose one out of the two
+  else {
+    sample(c(0,1),1)
+  }
+}
+
+#######################Tree.simplify######################################
+
+#n = node
+#returns a 0,1 or 2
+#determines the majority in the classlabels of a given node
+majority <- function(n){
+  Lbl <- n@classLabels
+  num_1 <- sum(Lbl)
+  num_0 <- length(Lbl) - num_1
+  #If 0 has a majority then we simply return 0
+  #and 1 if 1 has the majority
+  if (num_0 > num_1) {
+    0
+  }
+  else if(num_1 > num_0){
+    1
+  }#However if there is no majority, then we return a two
+  else {
+    2
+  }
+  
+}
+
+########################Splitting supports Tree.grow##############################
+
+#x = dataframe
+#y = classlabels
+#returns a vector of a splitvalue and its quality
+bestsplit <- function(x,y,minleaf) {
+  #First we sort the values of the attribute
+  sorted <- sort(unique(x))
+  #Then we determine the splitpoints, which are the average values of all two consecutive values
+  splitpoints <- (sorted[1:length(sorted) - 1] + sorted[2:length(sorted)]) / 2
+  
+  #Now determine the split and return it together with its quality
+  split <- foldSplits(x,y,splitpoints,minleaf)
+  c(split,computesplit(x,y,split,minleaf))
+}
+
+#x = dataframe
+#y = classlabels
+#splits = vector of integers
+#minleaf = integer
+#returns a splitpoint as an integer
+#This function will fold over all the split points
+#compute their splitvalues and return the split with the highest value
+foldSplits <- function(x,y,splits,minleaf) {
+  #We use a fold function to determine the best split
+  #The fold function has a neutral value. It then computes the
+  #split quality of the neutral value and the first element of the given list
+  #It compares these and returns the best split, which is then compared with the second
+  #value in the list and so on until all elements in the list have been computed and compared, and
+  #the best split remains
+  Reduce(function(a,b) {
+    #first compute the split for a given split value a and b
+    asplit <- computesplit(x,y,a,minleaf)
+    bsplit <- computesplit(x,y,b,minleaf)
+    
+    #As it is possible that a split is not possible given a split value
+    #the computesplit function can return NA, which means no split was possible
+    #In that case we need to check whether a or b, both or neither are NA
+    #and then according return the correct value
+    if(!is.na(asplit) && !is.na(bsplit)) {
+      if(asplit > bsplit) {
+        a
+      }
+      else {
+        b
+      }
+    }
+    else if(!is.na(asplit)){
+      a
+    }
+    else if(!is.na(bsplit)){
+      b
+    }
+    else {
+      NA
+    }
+  }, splits, NA)
+}
+
+#x = dataframe
+#y = classlabels
+#val = splitpoint (Integer)
+#minleaf = Integer
+#returns the quality of the split (splitVal)
+computesplit <- function(x, y, val,minleaf) {
+  
+  #split the class labels using val and the given attribute values
+  if(!is.na(val)) {
+    lchild <- y [x <= val]
+    rchild <- y [x > val]
+    
+    #If no split can be done return NA
+    if(!canbeSplit(lchild, rchild,minleaf)) {
+      NA
+    }
+    else {
+      #calculate how many samples are now in the left/right child
+      #of the total number of samples
+      ldistr <- length(lchild) / length(x)
+      rdistr <- length(rchild) / length(x)
+      
+      #calculates the quality of the split
+      gini(y) - (ldistr * gini(lchild) + (rdistr * gini(rchild)))
+    }
+  }
+  else {
+    NA
+  }
+}
+
+#l,r = classlabels
+#returns a boolean
+#A split is only possible if the child nodes have at least minleaf samples
+canbeSplit <- function(l, r,minleaf) {
+  length(l) >= minleaf && length(r) >= minleaf
+}
+
+#x = classlabels
+#returns an integer, which is the gini index
+#gini index function
+gini <- function(x) {
+  pGood <- sum(x) / length(x)
+  pBad <- length(x[x==0]) / length(x)
+  pGood * pBad
+}
+
+###########################Heartbin analysis code##############################
+
+#x = dataframe
+#returns a tuple with the testsample and trainingdata
+#This function simply creates a random testsample and then
+#randomly divided the rest of the data into 10 parts
+prepareData <- function(x) {
+  index <- trainingIndex()
+  data <- trainingdata(x,index)
+  sample <- testsample(x,index)
+  
+  dataparts <- splitTrainingData(data)
+  
+  list(sample,dataparts)
+}
+
+#Get a vector with a length of 200 containing randomly chosen
+#integers from 1 to 297
+trainingIndex <- function() {
+  index <- sample(297,200)
+}
+
+#size = number of rows in a dataframe
+#returns a vector with a length of 20 containing randomly chosen
+#integers from 1 to size
+partIndex <- function(size) {
+  index <- sample(size,20)
+}
+
+#x = dataframe
+#index = vector of integers
+#Returns a dataframe which rows' index correspond
+#to the vector index
+trainingdata <- function(x,index) {
+  x[index,]
+}
+
+#Index value is the exact same as above, but this time
+#we want to return all the rows that do not correspond
+#to the vector index
+testsample <- function(x,index) {
+  x[-index,]
+}
+
+#x = dataframe
+#returns a list of dataframes
+splitTrainingData <- function(x) {
+  #We want to divide the dataframe in 10 parts
+  l <- vector("list",10)
+  j <- 1
+  #As long as there are rows in the dataframe
+  while(length(x[,1]) > 0) {
+    #randomly take 20 rows
+    i <- partIndex(length(x[,1]))
+    part <- x[i,]
+    
+    #and throw these into the list
+    l[[j]] <- part
+    
+    #furthermore remove the taken rows from the dataframe
+    x <- x[-i,]
+    
+    j <- j + 1
+  }
+  
+  l
+}
+
+#sample = dataframe (testSample)
+#nmin,minleaf = integer
+#returns a tuple with the error rate and the resulting tree of the testSample
+evaluateSample <- function(sample,nmin,minleaf) {
+  y <- sample[,"AHD"]
+  x <- sample
+  x[,"AHD"] <- NULL
+  #We grow the tree and predict the classlabels given the sample
+  tree <- tree.grow(x,y,nmin,minleaf)
+  tree <- tree.simplify(tree)
+  cy <- tree.classify(tree,sample)
+  
+  #We calculate the classification error by comparing the classlabels from the sample
+  #and the predicted classlabels
+  error <- classificationError(y,cy)
+  
+  list(error,tree)
+}
+
+#dataparts = list of dataparts with a length of 10
+#nmin,minleaf = integer
+#returns the summed classification error of the cross validation
+#using the dataparts and a given nmin,minleaf
+evaluateModel <- function(dataparts,nmin,minleaf) {
+  
+  res <- crossValidation(dataparts,nmin,minleaf)
+  true <- res[[1]]
+  pred <- res[[2]]
+  classificationError(true,pred)
+}
+
+#true = classlabels from a given dataframe
+#pred = predicted classlabels calculated by growing and tree
+#and then using data to classify against it
+#Returns an integer
+classificationError <- function(true,pred) {
+  #We determine which classlabels were correctly predicted
+  corrPred <- true[true==pred]
+  #Then we determine how many were fasly predicted
+  numE <- length(pred) - length(corrPred)
+  #The classification error is then the number of errors divided by
+  #the total number of classlabels
+  numE / length(true)
+}
+
+#parts = list of dataparts with length 10
+#nmin,minleaf = integer
+crossValidation <- function(parts,nmin,minleaf) {
+  #initialize iterator
+  i <- 1
+  #determine size of dataparts
+  size <- length(parts)
+  
+  results <- vector("list",2)
+  
+  #We loop over the list of dataparts
+  while(i <= size) {
+    #First we take a part that wasn't chosen before
+    single <- parts[[i]]
+    #Then we get all the other parts
+    others <- parts[-i]
+    
+    #The other parts are than used to classify the single part
+    result <- classification(others,single,nmin,minleaf)
+    #
+    results[[1]] <- c(results[[1]],result[[1]])
+    results[[2]] <- c(results[[2]],result[[2]])
+    
+    i <- i + 1
+  }
+  
+  results
+}
+
+#x = list of dataframes
+#y = single dataframe
+#nmin,minleaf = integers
+#returns a 2-tuple with the given classlabels and the predicted classlabels
+classification <- function(x,y,nmin,minleaf) {
+  #First we want to get all classlabels of each dataframe
+  #and then combine them into a vector
+  cx <- vapply(x,FUN=getClassLabels,numeric(20))
+  cx <- (combineParts(cx))[[1]]
+  
+  #Then we want to remove the classlabels from the dataframes
+  #and combine the dataframes into a single dataframe
+  x <- lapply(x,FUN=removeClassLabels)
+  x <- combineParts(x)
+  
+  #Furthermore we want the 'true' classlabels from the single dataframe
+  cy <- y[,"AHD"]
+  
+  #We can now grow the tree using the combined dataframes and their classlabels
+  tree <- tree.grow(x,cx,nmin,minleaf)
+  tree <- tree.simplify(tree)
+  #Then we classify the single dataframe
+  classLabels <- tree.classify(tree,y)
+  
+  #list(true,pred)
+  list(cy,classLabels)
+}
+
+#x = dataframe
+#returns column AHD of x
+getClassLabels <- function(x) {
+  x[,"AHD"]
+}
+
+#x = dataframe
+#removes column AHD of x
+removeClassLabels <- function(x) {
+  x[,"AHD"] <- NULL
+  x
+}
+
+#parts = list of dataframes
+#Uses fold and rbind to append each dataframe to each other
+#resulting into a single big dataframe
+combineParts <- function(parts) {
+  Reduce(function(x,y) {
+    rbind(x,y)
+  },parts,data.frame())
+  
+}
+
+
+#############################Tree structure plus plotting code################################
+
+# library("plotrix")
+
+#Abstract Tree class
+setClass(
+  "Tree"
+)
+
+#Class node that represents an internal node within our tree
+setClass(
+  "Node",
+  representation(lChild="Tree",
+                 classLabels="numeric",
+                 splitAttr="character",splitVal="numeric",
+                 rChild="Tree"),
+  contains = "Tree"
+)
+
+#Class leaf, doesn't contain an actual value and acts merely as a placeholder
+#for the children of the nodes at the bottom of the tree
+setClass(
+  "Leaf",
+  contains = "Tree"
+)
+
+#The name might be misleading, but the method determines whether a given node
+#is at the bottom of the tree. This means it must still be an internal node!
+setGeneric("isLeaf",function(x) attributes(x))
+setMethod("isLeaf","Tree",
+          function(x) {
+            if(isNode(x)) { #If an internalnode
+              class(x@lChild) == "Leaf" && class(x@rChild) == "Leaf" 
+            } #if both children are leaves, then it is a 'leaf' node
+            else {
+              FALSE
+            }
+            
+          })
+
+setGeneric("isNode",function(x) attributes(x))
+setMethod("isNode", "Tree",
+          function(x) {
+            class(x) == "Node"
+          })
+
+#Simple function, which takes a vector of integers and creates a new node object
+#with the given vector for its classlabels
+newNode <- function(x) {
+  new("Node", lChild= new("Leaf"), classLabels=x, rChild=new("Leaf"))
+}
+
+
+#-------------------------------------------------------------------------------------
+#The code below this part is purely to help draw the tree and for no other purpose that is
+#related to the analysis of heartbin
+
+setGeneric("heightOf",function(x) attributes(x))
+setMethod("heightOf","Tree",
+          function(x) {
+            if(isNode(x)) {
+              1 + max(heightOf(x@lChild),heightOf(x@rChild))
+            }
+            else {
+              0
+            }
+          })
+
+setGeneric("sizeOf",function(x) attributes(x))
+setMethod("sizeOf","Tree",
+          function(x) {
+            if(isNode(x)) {
+              1 + sizeOf(x@lChild) + sizeOf(x@rChild)
+            }
+            else {
+              0
+            }
+          })
+
+setGeneric("widthOf",function(x) attributes(x))
+  setMethod("widthOf","Tree",
+            function(x) {
+              h <- heightOf(x)
+              2^(h-1)
+            })
+
+
+#To use this code uncomment it, uncomment the library at the top of this page
+#and install the given library. The code below wasn't a necessary part of the assignment
+#but we used it to graph our tree. Understand that it works best for our specific tree,
+#if you try to graph with a different tree, text will most likely be misaligned
+
+# setMethod("plot","Tree",
+#           function(x) {
+#             
+#             par(mar = c(4,4,4,4)) 
+#             w <- widthOf(x)
+#             h <- heightOf(x)
+#             plot.new()
+#             plot.window(c(0,w * 100),c(0,h * 100),asp=1)
+#             plotNode(x,w * 50,(h*100) - 25,w*50,25)
+#             
+#             rect(w * 80 - 25,(h*100) - 50,w*80 + 25,(h*100))
+#             rect(w*80+25,(h*100) - 50,w*80 + 75,h*100)
+#             text(w*80,(h*100) - 25,"Bad")
+#             text(w*80 + 50,h*100 - 25,"Good")
+#           })
+# 
+# setGeneric("plotNode",function(n,x,y,scale,radius) attributes(n,x,y,scale,radius))
+# setMethod("plotNode","Tree",
+#           function(n,x,y,scale,radius) {
+#             
+#             numOnes <- sum(n@classLabels)
+#             numZeros <- length(n@classLabels) - numOnes
+#             
+#             if(!isLeaf(n) && isNode(n)) {
+#               newX <- scale / 2
+#               newY <- y - (radius * 3)
+#               
+#               #Draw the edges
+#               lines(c(x,x-newX),c(y-radius,newY))
+#               lines(c(x,x+newX),c(y-radius,newY))
+#               
+#               #Draw split information
+#               ltext <- paste("<=",n@splitVal)
+#               rtext <- paste(">",n@splitVal)
+#               attrtext <- paste(n@splitAttr)
+#               text(x - (newX / 2) - (length(ltext) * 20),y - (radius * 1.5),ltext)
+#               text(x + (newX / 2) + (length(rtext) * 20),y - (radius * 1.5),rtext)
+#               text(x,y - (2 *radius),attrtext)
+#               
+#               #Draw the child nodes
+#               plotNode(n@lChild,x - newX,newY - radius,newX,radius)
+#               plotNode(n@rChild,x + newX,newY - radius,newX,radius)
+#               
+#               #Draw the node
+#               rectFill(x - radius,y - radius,x,y + radius,pch = NULL,bg=5)
+#               rectFill(x,y - radius, x + radius, y + radius,pch = NULL,bg=5)
+#             }
+#             else{
+#               color <- c(0)
+#               if(numZeros > numOnes) {
+#                 color <- 2 #red
+#               }
+#               else {
+#                 color <- 3 #green
+#               }
+#               #Draw the node with a given color
+#               rectFill(x - radius,y - radius,x,y + radius,pch = NULL,bg=color)
+#               rectFill(x,y - radius, x + radius, y + radius,pch = NULL,bg=color)
+#             }
+#             
+#             zeroLength <- radius / length(paste(numZeros))
+#             oneLength <- radius / length(paste(numOnes))
+#             #Draw text inside the node
+#             text(x - zeroLength / 2,y,numZeros)
+#             text(x + oneLength / 2,y,numOnes)
+#           })
+# 
+# 

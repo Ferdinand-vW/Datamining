@@ -6,31 +6,34 @@ gm.search <- function(table,initGraph) {
 }
 
 gm.search_ <- function(table,graph) {
+  
+  quality <- detQuality(table,graph)
+  
+  neighbors <- findAllNeighbors(graph)
+  
+  if(length(neighbors) > 0) {
+    neighborQualities <- lapply(neighbors,function(x) detQuality(table,x))
+    bNeighborIndex <- minimumNeighbor(neighborQualities)
+    bNeighbor <- neighbors[[bNeighborIndex]]
+    bNeighborQuality <- neighborQualities[[bNeighborIndex]]
+    
+    if(quality > bNeighborQuality) {
+       return (gm.search_(table,bNeighbor))
+    }
+  }
+  
+  list(quality,table,graph)
+}
+
+detQuality <- function(table,graph) {
   cliques <- getCliques(graph)
-  print("test")
-  lglin <- loglin(table,cliques)
+  lglin <- loglin(table,cliques,print=FALSE)
   dev <- lglin$lrt
   df <- lglin$df
   
-  quality <- detQuality(table,dev,df)
-  
-  neighbors <- findAllNeighbors(graph)
-  neighborQualities <- lapply(neighbors,FUN=detQuality,dev=dev,df=df)
-  bNeighborIndex <- minimumNeighbor(neighborQualities)
-  bNeighbor <- neighbors[[bNeighborIndex]]
-  bNeighborQuality <- neighborQualities[[bNeighborIndex]]
-  
-  if(quality >= bNeighborQuality) {
-    gm.search_(table,bNeighbor)
-  }
-  else {
-    list(quality,table,graph)
-  }
-}
-
-detQuality <- function(table,dev,df) {
   nParams <- length(table) - df
-  dev + 2 * nParams
+  #dev + 2 * nParams
+  dev + log(sum(table)) * nParams
 }
 
 findAllNeighbors <- function(graph) {
