@@ -47,45 +47,57 @@ generateGraph <- function(prob,numAttrs) {
   matrix
 }
 
-gm.search <- function(table,initGraph,forward,backward,score) {
-  res <- gm.search_(table,initGraph,forward,backward,score,c())
-  list(score = res$score, cliques = res$cliques, model = res$model, trace = res$trace,call = match.call())
-}
-
-gm.search_ <- function(table,graph,forward,backward,score,steps) {
-  cliques <- getCliques(graph)
+gm.search <- function(table,graph,forward,backward,score) {
+  
+  cliques <-  getCliques(graph)
   quality <- detQuality(table,cliques,score)
+  currModel <- list("",graph)
+  steps <-  c()
+  searching <- TRUE
   
-  neighbors <- findAllNeighbors(graph,forward,backward)
-  
-  if(length(neighbors) > 0) {
-    neighborQualities <- lapply(neighbors,function(x) detQuality(table,getCliques(x[[2]]),score))
-    bNeighborIndex <- minimumNeighbor(neighborQualities)
-    bNeighbor <- neighbors[[bNeighborIndex]]
-    bNeighborQuality <- neighborQualities[[bNeighborIndex]]
-    bNeighbor <- list(paste(bNeighbor[[1]],"(score = ", bNeighborQuality, ")"),bNeighbor[[2]])
-    print(bNeighbor)
-    if(quality > bNeighborQuality) {
-       return (gm.search_(table,bNeighbor[[2]],forward,backward,score,c(steps,bNeighbor[[1]])))
+  while(searching) {
+    
+    neighbors <- findAllNeighbors(currModel[[2]],forward,backward)
+    if(length(neighbors) > 0) {
+      nbrCliques <- lapply(neighbors, function(x) getCliques(x[[2]]))
+      nbrQualities <- lapply(nbrCliques, function(x) detQuality(table,x,score))
+      bNeighborIndex <- minimumNeighbor(nbrQualities)
+      bNeighbor <- neighbors[[bNeighborIndex]]
+      bNeighborQuality <- nbrQualities[[bNeighborIndex]]
+      bCliques <- nbrCliques[[bNeighborIndex]]
+      bNeighbor <- list(paste(bNeighbor[[1]],"(score = ", bNeighborQuality, ")"),bNeighbor[[2]])
+      
+      if(quality > bNeighborQuality) {
+        print(quality)
+        print(bNeighborQuality)
+        print(quality - bNeighborQuality > 0)
+        quality <- bNeighborQuality
+        currModel <- bNeighbor
+        cliques <- bCliques
+        steps <- c(steps,bNeighbor[[1]])
+      }
+      else {
+        searching <- FALSE
+      }
     }
   }
   
-  list(score = quality,model = graph, cliques = cliques,trace = steps)
+  return (list(score = quality,model = currModel[[2]], cliques = cliques,trace = steps,call = match.call()))
 }
 
 detQuality <- function(table,cliques,score) {
   
   lglin <- loglin(table,cliques,print=FALSE)
-  dev <- lglin$lrt
+  dev <- as.double(lglin$lrt)
   df <- lglin$df
   
   nParams <- length(table) - df
   
   if(score == "aic") {
-    dev + 2 * nParams
+    round(dev + 2 * nParams,2)
   }
   else if(score == "bic") {
-    dev + log(sum(table)) * nParams
+    round(dev + log(sum(table)) * nParams,2)
   }
   else {
     stop(paste("use either bic or aic for the score. You used:",score))
@@ -130,12 +142,12 @@ findAllNeighbors <- function(graph,forward,backward) {
 
 getCliques <- function(graph) {
   cliques <- find.cliques(c(),1:(nrow(graph)),c(),graph,list())
-  post.process(cliques)
+  return (post.process(cliques))
 }
 
 minimumNeighbor <- function(nQualities) {
   currQuality <- nQualities[[1]]
-  i <- 1
+  i <- 2
   index <- 1
   
   while(i <= length(nQualities)) {
