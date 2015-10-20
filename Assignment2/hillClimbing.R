@@ -5,7 +5,7 @@ gm.restart <- function(nstart,prob,seed,table,forward,backward,score) {
   set.seed(seed)
   numAttrs <- length(dim(table))
   
-  currModel <- gm.search(table,matrix(0,numAttrs,numAttrs))
+  currModel <- gm.search(table,matrix(1,numAttrs,numAttrs),forward,backward,score)
   
   i <- 1
   while(i <= nstart) {
