@@ -10,7 +10,7 @@ gm.restart <- function(nstart,prob,seed,table,forward,backward,score) {
   i <- 1
   while(i <= nstart) {
     
-    graph <- generateGraph(prob,numAttrs)
+    graph <- matrix(sample(0:1,numAttrs * numAttrs,replace=TRUE,prob=c(1-prob,prob)),numAttrs,numAttrs)
     model <- gm.search(table,graph,forward,backward,score)
     
     if(model[[1]] <= currModel[[1]]) {
@@ -24,28 +24,28 @@ gm.restart <- function(nstart,prob,seed,table,forward,backward,score) {
   
 }
 
-generateGraph <- function(prob,numAttrs) {
-  i <- 1
-  j <- 1
-  matrix <- matrix(0,numAttrs,numAttrs)
-  while(i <= nrow(matrix)) {
-    while(j <= ncol(matrix)) {
-      if(i == j) {
-        matrix[j,i] = 0
-      }
-      else {
-        matrix[j,i] = sample(0:1,1)
-      }
-      
-      j <- j + 1
-    }
-    
-    i <- i + 1
-    j <- 1
-  }
-  
-  matrix
-}
+# generateGraph <- function(prob,numAttrs) {
+#   i <- 1
+#   j <- 1
+#   matrix <- matrix(0,numAttrs,numAttrs)
+#   while(i <= nrow(matrix)) {
+#     while(j <= ncol(matrix)) {
+#       if(i == j) {
+#         matrix[j,i] = 0
+#       }
+#       else {
+#         matrix[j,i] = sample(0:1,1,prob=c(1-prob,prob))
+#       }
+#       
+#       j <- j + 1
+#     }
+#     
+#     i <- i + 1
+#     j <- 1
+#   }
+#   
+#   matrix
+# }
 
 gm.search <- function(table,graph,forward,backward,score) {
   
@@ -61,16 +61,17 @@ gm.search <- function(table,graph,forward,backward,score) {
     if(length(neighbors) > 0) {
       nbrCliques <- lapply(neighbors, function(x) getCliques(x[[2]]))
       nbrQualities <- lapply(nbrCliques, function(x) detQuality(table,x,score))
-      bNeighborIndex <- minimumNeighbor(nbrQualities)
+      bNeighborIndex <- which.min(nbrQualities)
       bNeighbor <- neighbors[[bNeighborIndex]]
       bNeighborQuality <- nbrQualities[[bNeighborIndex]]
       bCliques <- nbrCliques[[bNeighborIndex]]
       bNeighbor <- list(paste(bNeighbor[[1]],"(score = ", bNeighborQuality, ")"),bNeighbor[[2]])
-      
+
       if(quality > bNeighborQuality) {
+        print("--------")
         print(quality)
         print(bNeighborQuality)
-        print(quality - bNeighborQuality > 0)
+        print("--------")
         quality <- bNeighborQuality
         currModel <- bNeighbor
         cliques <- bCliques
@@ -86,9 +87,8 @@ gm.search <- function(table,graph,forward,backward,score) {
 }
 
 detQuality <- function(table,cliques,score) {
-  
   lglin <- loglin(table,cliques,print=FALSE)
-  dev <- as.double(lglin$lrt)
+  dev <- lglin$lrt
   df <- lglin$df
   
   nParams <- length(table) - df
@@ -100,7 +100,7 @@ detQuality <- function(table,cliques,score) {
     round(dev + log(sum(table)) * nParams,2)
   }
   else {
-    stop(paste("use either bic or aic for the score. You used:",score))
+    stop(paste("use either bic or aic for the score. You used: ",score))
   }
 }
 
