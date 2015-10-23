@@ -5,47 +5,50 @@ gm.restart <- function(nstart,prob,seed,table,forward,backward,score) {
   set.seed(seed)
   numAttrs <- length(dim(table))
   
-  currModel <- gm.search(table,matrix(1,numAttrs,numAttrs),forward,backward,score)
+  #We'll start off with the saturated model
+  currModel <- generateGraph(1,numAttrs)
+  quality <- detQuality(table,currModel,score)
   
   i <- 1
   while(i <= nstart) {
     
-    graph <- matrix(sample(0:1,numAttrs * numAttrs,replace=TRUE,prob=c(1-prob,prob)),numAttrs,numAttrs)
+    #graph <- matrix(sample(0:1,numAttrs * numAttrs,replace=TRUE,prob=c(1-prob,prob)),numAttrs,numAttrs)
+    graph <- generateGraph(prob,10)
     model <- gm.search(table,graph,forward,backward,score)
     
-    if(model[[1]] <= currModel[[1]]) {
-      currModel <- model
+    if(model[[1]] <= quality) {
+      currModel <- model[[2]]
+      quality <- model[[1]]
     }
     
     i <- i + 1
   }
   
   return (currModel)
-  
 }
 
-# generateGraph <- function(prob,numAttrs) {
-#   i <- 1
-#   j <- 1
-#   matrix <- matrix(0,numAttrs,numAttrs)
-#   while(i <= nrow(matrix)) {
-#     while(j <= ncol(matrix)) {
-#       if(i == j) {
-#         matrix[j,i] = 0
-#       }
-#       else {
-#         matrix[j,i] = sample(0:1,1,prob=c(1-prob,prob))
-#       }
-#       
-#       j <- j + 1
-#     }
-#     
-#     i <- i + 1
-#     j <- 1
-#   }
-#   
-#   matrix
-# }
+generateGraph <- function(prob,numAttrs) {
+  i <- 1
+  j <- 1
+  matrix <- matrix(0,numAttrs,numAttrs)
+  while(i <= nrow(matrix)) {
+    while(j <= ncol(matrix)) {
+      if(i == j) {
+        matrix[j,i] = 0
+      }
+      else {
+        matrix[j,i] = sample(0:1,1,prob=c(1-prob,prob))
+      }
+      
+      j <- j + 1
+    }
+    
+    i <- i + 1
+    j <- 1
+  }
+  
+  matrix
+}
 
 gm.search <- function(table,graph,forward,backward,score) {
   
@@ -58,20 +61,24 @@ gm.search <- function(table,graph,forward,backward,score) {
   while(searching) {
     
     neighbors <- findAllNeighbors(currModel[[2]],forward,backward)
+    
     if(length(neighbors) > 0) {
+      
+      #get the cliques for all neighbors
       nbrCliques <- lapply(neighbors, function(x) getCliques(x[[2]]))
+      #calculate the quality  of all neighbors
       nbrQualities <- lapply(nbrCliques, function(x) detQuality(table,x,score))
+      #get the index of the neighbor with the best quality
       bNeighborIndex <- which.min(nbrQualities)
+      
+      #Get the model,cliques and quality of the best neighbor
       bNeighbor <- neighbors[[bNeighborIndex]]
       bNeighborQuality <- nbrQualities[[bNeighborIndex]]
       bCliques <- nbrCliques[[bNeighborIndex]]
+      
       bNeighbor <- list(paste(bNeighbor[[1]],"(score = ", bNeighborQuality, ")"),bNeighbor[[2]])
 
       if(quality > bNeighborQuality) {
-        print("--------")
-        print(quality)
-        print(bNeighborQuality)
-        print("--------")
         quality <- bNeighborQuality
         currModel <- bNeighbor
         cliques <- bCliques
