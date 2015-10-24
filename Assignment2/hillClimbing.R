@@ -24,7 +24,7 @@ gm.restart <- function(nstart,prob,seed,table,forward,backward,score) {
     i <- i + 1
   }
   
-  return (currModel)
+  return (currModel,quality)
 }
 
 generateGraph <- function(prob,numAttrs) {
