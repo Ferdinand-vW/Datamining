@@ -54,20 +54,32 @@ gm.search <- function(table,graph,forward,backward,score) {
   
   cliques <-  getCliques(graph)
   quality <- detQuality(table,cliques,score)
-  currModel <- list("",graph)
+  currModel <- graph
+  prevModels <- list(graph)
   steps <-  c()
   searching <- TRUE
   
   while(searching) {
     
-    neighbors <- findAllNeighbors(currModel[[2]],forward,backward)
+    neighborsAndSteps <- findAllNeighbors(currModel,forward,backward,prevModels)
+    neighbors <- neighborsAndSteps[[1]]
+    neighborSteps <- neighborsAndSteps[[2]]
     
     if(length(neighbors) > 0) {
       
       #get the cliques for all neighbors
-      nbrCliques <- lapply(neighbors, function(x) getCliques(x[[2]]))
+      nbrCliques <- lapply(neighbors, 
+            function(x){
+              print(x)
+              getCliques(x)
+            })
       #calculate the quality  of all neighbors
-      nbrQualities <- lapply(nbrCliques, function(x) detQuality(table,x,score))
+      nbrQualities <- lapply(nbrCliques, 
+            function(x) {
+              q <- detQuality(table,x,score)
+              print(q)
+              q
+            })
       #get the index of the neighbor with the best quality
       bNeighborIndex <- which.min(nbrQualities)
       
@@ -75,14 +87,14 @@ gm.search <- function(table,graph,forward,backward,score) {
       bNeighbor <- neighbors[[bNeighborIndex]]
       bNeighborQuality <- nbrQualities[[bNeighborIndex]]
       bCliques <- nbrCliques[[bNeighborIndex]]
-      
-      bNeighbor <- list(paste(bNeighbor[[1]],"(score = ", bNeighborQuality, ")"),bNeighbor[[2]])
+      bSteps <- neighborSteps[[bNeighborIndex]]
 
-      if(quality > bNeighborQuality) {
+      if(quality >= bNeighborQuality) {
         quality <- bNeighborQuality
         currModel <- bNeighbor
+        prevModels <- c(prevModels,list(currModel))
         cliques <- bCliques
-        steps <- c(steps,bNeighbor[[1]])
+        steps <- c(steps,bSteps)
       }
       else {
         searching <- FALSE
@@ -90,7 +102,7 @@ gm.search <- function(table,graph,forward,backward,score) {
     }
   }
   
-  return (list(score = quality,model = currModel[[2]], cliques = cliques,trace = steps,call = match.call()))
+  return (list(score = quality,model = currModel, cliques = cliques,trace = steps,call = match.call()))
 }
 
 detQuality <- function(table,cliques,score) {
@@ -111,15 +123,16 @@ detQuality <- function(table,cliques,score) {
   }
 }
 
-findAllNeighbors <- function(graph,forward,backward) {
+findAllNeighbors <- function(graph,forward,backward,prevModels) {
   size <- nrow(graph) * ncol(graph) - nrow(graph)
-  l <- vector("list",size)
-  k <- 1
+  graphs <- list()
+  steps <- list()
   i <- 1
   j <- 1
   iLength <- ncol(graph)
   jLength <- nrow(graph)
-  
+  print("test")
+  print(graph)
   while(i <= iLength) {
     
     while(j <= jLength) {
@@ -128,13 +141,18 @@ findAllNeighbors <- function(graph,forward,backward) {
         newGraph <- graph
         if(newGraph[j,i] == 0 && forward) {
           newGraph[j,i] <- 1
-          l[[k]] <- list(paste("Added:",j,"to",i,sep=" "),newGraph)
-          k <- k + 1
+          if(!containsMatrix(prevModels,newGraph)) {
+            graphs <- c(graphs,list(newGraph))
+            steps <- c(steps,list(paste("Added:",j,"to",i,sep=" ")))
+          }
+
         }
         else if(newGraph[j,i] == 1 && backward) {
           newGraph[j,i] <- 0
-          l[[k]] <- list(paste("Removed:",j,"to",i,sep=" "),newGraph)
-          k <- k + 1
+          if(!containsMatrix(prevModels,newGraph)) {
+            graphs <- c(graphs,list(newGraph))
+            steps <- c(steps,list(paste("Removed:",j,"to",i,sep=" ")))
+          }
         }
       }
       
@@ -144,12 +162,26 @@ findAllNeighbors <- function(graph,forward,backward) {
     i <-i + 1
   }
   
-  l
+  list(graphs,steps)
 }
 
 getCliques <- function(graph) {
   cliques <- find.cliques(c(),1:(nrow(graph)),c(),graph,list())
   return (post.process(cliques))
+}
+
+containsMatrix <- function(listOf,matrix) {
+  i <- 1
+  while(i <= length(listOf)) {
+    if(!identical(listOf[[i]],matrix)) {
+      i <- i + 1
+    }
+    else {
+      return(TRUE)
+    }
+  }
+  
+  return (FALSE)
 }
 
 minimumNeighbor <- function(nQualities) {
