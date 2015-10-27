@@ -32,14 +32,11 @@ generateGraph <- function(prob,numAttrs) {
   j <- 1
   matrix <- matrix(0,numAttrs,numAttrs)
   while(i <= nrow(matrix)) {
-    while(j <= ncol(matrix)) {
-      if(i == j) {
-        matrix[j,i] = 0
-      }
-      else {
-        matrix[j,i] = sample(0:1,1,prob=c(1-prob,prob))
-      }
+    while(j <= ncol(matrix) && j < i) {
       
+      val <- sample(0:1,1,prob=c(1-prob,prob))
+      matrix[j,i] <- val
+      matrix[i,j] <- val
       j <- j + 1
     }
     
@@ -135,24 +132,24 @@ findAllNeighbors <- function(graph,forward,backward,prevModels) {
   print(graph)
   while(i <= iLength) {
     
-    while(j <= jLength) {
-      
-      if(i != j) {
-        newGraph <- graph
-        if(newGraph[j,i] == 0 && forward) {
-          newGraph[j,i] <- 1
-          if(!containsMatrix(prevModels,newGraph)) {
-            graphs <- c(graphs,list(newGraph))
-            steps <- c(steps,list(paste("Added:",j,"to",i,sep=" ")))
-          }
-
+    while(j <= jLength && j < i) {
+  
+      newGraph <- graph
+      if(newGraph[j,i] == 0 && forward) {
+        newGraph[j,i] <- 1
+        newGraph[i,j] <- 1
+        if(!containsMatrix(prevModels,newGraph)) {
+          graphs <- c(graphs,list(newGraph))
+          steps <- c(steps,list(paste("Added:",j,"to",i,sep=" ")))
         }
-        else if(newGraph[j,i] == 1 && backward) {
-          newGraph[j,i] <- 0
-          if(!containsMatrix(prevModels,newGraph)) {
-            graphs <- c(graphs,list(newGraph))
-            steps <- c(steps,list(paste("Removed:",j,"to",i,sep=" ")))
-          }
+
+      }
+      else if(newGraph[j,i] == 1 && backward) {
+        newGraph[j,i] <- 0
+        newGraph[i,j] <- 0
+        if(!containsMatrix(prevModels,newGraph)) {
+          graphs <- c(graphs,list(newGraph))
+          steps <- c(steps,list(paste("Removed:",j,"to",i,sep=" ")))
         }
       }
       
