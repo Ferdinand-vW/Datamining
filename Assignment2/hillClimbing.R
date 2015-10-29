@@ -7,7 +7,8 @@ gm.restart <- function(nstart,prob,seed,table,forward,backward,score) {
   
   #We'll start off with the saturated model
   currModel <- generateGraph(1,numAttrs)
-  quality <- detQuality(table,currModel,score)
+  cliques <- getCliques(currModel)
+  quality <- detQuality(table,cliques,score)
   
   i <- 1
   while(i <= nstart) {
@@ -24,7 +25,7 @@ gm.restart <- function(nstart,prob,seed,table,forward,backward,score) {
     i <- i + 1
   }
   
-  return (currModel,quality)
+  list (currModel,quality)
 }
 
 generateGraph <- function(prob,numAttrs) {
